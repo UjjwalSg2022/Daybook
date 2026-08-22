@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables - never commit secrets
+.env
+**/.env
+
+# Build output
+client/dist/
+**/dist/
+
+# Uploaded voice message audio files - user data, not source code
+server/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/settings.json
