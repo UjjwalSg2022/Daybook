@@ -1,11 +1,16 @@
 // Emergency/manual password reset, run directly against the database.
 // There is no in-app "forgot password" flow by design (see PRD §6.1) - this
 // script exists for the one case that flow can't cover: the Super Admin
-// locking themselves out. Anyone with terminal + .env access can run this,
-// so treat that access itself as the security boundary.
+// locking themselves out, or any user who needs a fresh password issued.
 //
 // Usage:
 //   node scripts/resetPassword.js you@macintl.in aNewStrongPassword123
+//
+// By default this forces a change on next login for non-admin users. To set
+// a FINAL password directly - e.g. seeding known test/demo credentials, or
+// simply issuing someone a password they'll keep using as-is - add "final"
+// as a third argument:
+//   node scripts/resetPassword.js you@macintl.in aNewStrongPassword123 final
 require('dotenv').config();
 require('dns').setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
@@ -13,10 +18,10 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
 async function main() {
-  const [, , email, newPassword] = process.argv;
+  const [, , email, newPassword, mode] = process.argv;
 
   if (!email || !newPassword) {
-    console.error('Usage: node scripts/resetPassword.js email newPassword');
+    console.error('Usage: node scripts/resetPassword.js email newPassword [final]');
     process.exit(1);
   }
   if (newPassword.length < 8) {
@@ -34,13 +39,11 @@ async function main() {
   }
 
   user.passwordHash = await bcrypt.hash(newPassword, 10);
-  // Force a change on next login for anyone but the Super Admin resetting
-  // their own account - keeps the "must change temp password" rule intact
-  // for regular users while letting the admin set a real password directly.
-  user.mustChangePassword = !user.isSuperAdmin;
+  user.mustChangePassword = mode === 'final' ? false : !user.isSuperAdmin;
   await user.save();
 
   console.log(`Password updated for ${user.email} (${user.role}${user.isSuperAdmin ? ', Super Admin' : ''}).`);
+  console.log(`Must change on next login: ${user.mustChangePassword}`);
 
   await mongoose.disconnect();
   process.exit(0);
