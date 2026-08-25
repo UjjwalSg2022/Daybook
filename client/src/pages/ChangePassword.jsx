@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 
 export default function ChangePassword() {
   const { user, updateUser } = useAuth();
@@ -34,8 +36,10 @@ export default function ChangePassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex flex-col">
+      <Header subtitle="Account" />
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="font-display text-3xl font-semibold text-ink tracking-tight">
             {user.mustChangePassword ? 'Set a new password' : 'Change password'}
@@ -104,7 +108,9 @@ export default function ChangePassword() {
             {busy ? 'Saving…' : 'Set password'}
           </button>
         </form>
+        </div>
       </div>
+      <Footer />
     </div>
   );
 }

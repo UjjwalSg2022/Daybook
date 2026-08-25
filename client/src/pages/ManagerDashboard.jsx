@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import VoiceRecorder from '../components/VoiceRecorder.jsx';
 import VoiceMessageItem from '../components/VoiceMessageItem.jsx';
+import AdminUserManagement from '../components/AdminUserManagement.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
 
 function AssignTaskModal({ team, onClose, onCreated }) {
@@ -139,6 +142,7 @@ function AssignTaskModal({ team, onClose, onCreated }) {
 }
 
 export default function ManagerDashboard() {
+  const { user } = useAuth();
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -155,9 +159,11 @@ export default function ManagerDashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header subtitle="Team overview" />
-      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page">
+      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
+        {user?.isSuperAdmin && <AdminUserManagement />}
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-display text-lg font-semibold text-ink">Your team</h2>
           <button
@@ -234,6 +240,7 @@ export default function ManagerDashboard() {
           </div>
         )}
       </main>
+      <Footer />
 
       {modalOpen && (
         <AssignTaskModal

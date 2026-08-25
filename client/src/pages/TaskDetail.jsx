@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
@@ -61,11 +62,12 @@ export default function TaskDetail() {
     load();
   }
 
-  if (!task) {
+   if (!task) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <p className="font-mono text-sm text-ink-soft text-center mt-10">Loading…</p>
+        <p className="font-mono text-sm text-ink-soft text-center mt-10 flex-1">Loading…</p>
+        <Footer />
       </div>
     );
   }
@@ -74,9 +76,9 @@ export default function TaskDetail() {
   const canEditText = isOwner || isManagerView; // open-edit decision, build phase
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header subtitle="Task record" />
-      <main className="max-w-3xl mx-auto px-6 md:px-10 py-8 ledger-page">
+      <main className="max-w-3xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
         <Link
           to={user?.role === 'manager' || user?.isSuperAdmin ? '/manager' : '/employee'}
           className="font-mono text-xs uppercase tracking-wide text-ink-soft hover:text-ledger"
@@ -277,6 +279,7 @@ export default function TaskDetail() {
           </section>
         )}
       </main>
+      <Footer />
     </div>
   );
 }

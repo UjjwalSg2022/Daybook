@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import VoiceMessageItem from '../components/VoiceMessageItem.jsx';
 import api from '../api/client';
@@ -72,9 +73,9 @@ export default function EmployeeDashboard() {
   const unheardCount = voiceMessages.filter((m) => !m.listenedAt).length;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header subtitle="Your daily record" />
-      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page">
+      <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
         {/* Stats strip - CSS grid with auto-fit so chips stretch evenly to
             fill each row instead of leaving a gap on an uneven last row */}
         <div
@@ -235,7 +236,8 @@ export default function EmployeeDashboard() {
             </ul>
           </section>
         )}
-      </main>
+            </main>
+      <Footer />
     </div>
   );
 }

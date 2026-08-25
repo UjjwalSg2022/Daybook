@@ -6,8 +6,8 @@ export default function Header({ subtitle }) {
 
   return (
     <header className="border-b border-rule bg-paper/95 backdrop-blur-sm sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-6 md:px-10 py-5 flex items-center justify-between">
-        <div>
+      <div className="max-w-5xl mx-auto px-6 md:px-10 py-5 flex items-center justify-between gap-6">
+        <div className="flex-shrink-0">
           <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
             Daybook
           </h1>
@@ -15,8 +15,9 @@ export default function Header({ subtitle }) {
             {subtitle || 'MAC International — work record'}
           </p>
         </div>
+
         {user && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-shrink-0">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-medium text-ink">{user.name}</div>
               <div className="font-mono text-[11px] text-ink-soft uppercase tracking-wide">
