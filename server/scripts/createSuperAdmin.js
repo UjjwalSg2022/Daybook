@@ -1,11 +1,10 @@
 // One-time setup script. Run once when standing up a fresh database:
 //   node scripts/createSuperAdmin.js "Your Name" you@macintl.in yourPassword123
 //
-// There is no UI for this and no other way to create a Super Admin -
-// isSuperAdmin is never settable through the API.
+// There is no UI for this and no other way to create the Admin account -
+// there should only ever be exactly one, so this script refuses to run if
+// an Admin already exists.
 require('dotenv').config();
-// Same DNS workaround as server.js - some networks fail to resolve the
-// mongodb+srv:// SRV record even though the network itself is fine.
 require('dns').setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -25,6 +24,17 @@ async function main() {
 
   await mongoose.connect(process.env.MONGO_URI);
 
+  const existingAdmin = await User.findOne({
+    $or: [{ role: 'admin' }, { isSuperAdmin: true }],
+  });
+  if (existingAdmin) {
+    console.error(
+      `An Admin account already exists (${existingAdmin.email}). Only one Admin is allowed.`
+    );
+    await mongoose.disconnect();
+    process.exit(1);
+  }
+
   const existing = await User.findOne({ email: email.toLowerCase().trim() });
   if (existing) {
     console.error(`A user with email ${email} already exists.`);
@@ -38,12 +48,12 @@ async function main() {
     name,
     email: email.toLowerCase().trim(),
     passwordHash,
-    role: 'manager', // super admins hold a normal role too; the flag does the rest
+    role: 'admin',
     isSuperAdmin: true,
     mustChangePassword: false,
   });
 
-  console.log('Super Admin created:');
+  console.log('Admin account created:');
   console.log(`  Name:  ${admin.name}`);
   console.log(`  Email: ${admin.email}`);
   console.log('You can log in with this email and the password you just set.');
@@ -53,6 +63,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Failed to create Super Admin:', err.message);
+  console.error('Failed to create Admin account:', err.message);
   process.exit(1);
 });

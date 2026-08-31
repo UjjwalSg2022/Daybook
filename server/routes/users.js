@@ -160,6 +160,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
       if (!['employee', 'manager'].includes(role)) {
         return res.status(400).json({ error: 'Role must be employee or manager' });
       }
+      // Switching a manager to employee would orphan anyone still reporting
+      // to them - block it until those employees are reassigned.
       if (user.role === 'manager' && role === 'employee') {
         const linkedCount = await User.countDocuments({ managerId: user._id });
         if (linkedCount > 0) {

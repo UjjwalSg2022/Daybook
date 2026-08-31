@@ -9,16 +9,18 @@ const requireAuth = require('../middleware/auth');
 
 const router = express.Router();
 
+function isAdmin(user) {
+  return user.role === 'admin' || user.isSuperAdmin === true;
+}
+
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'voice-messages');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB - a few minutes of speech
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    // Ignore whatever name the browser sends - generate our own to avoid
-    // collisions and any path-traversal risk from a crafted filename.
     const ext = file.mimetype.includes('webm')
       ? '.webm'
       : file.mimetype.includes('ogg')
@@ -41,12 +43,9 @@ const upload = multer({
   },
 });
 
-// POST /api/voice-messages - manager records and sends a voice message to
-// one of their linked employees. Employees cannot send - manager-to-employee
-// only, by design.
 router.post('/', requireAuth, upload.single('audio'), async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin && req.user.role !== 'manager') {
+    if (!isAdmin(req.user) && req.user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can send voice messages' });
     }
     if (!req.file) {
@@ -64,7 +63,7 @@ router.post('/', requireAuth, upload.single('audio'), async (req, res) => {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: 'recipientId must be a valid employee' });
     }
-    if (!req.user.isSuperAdmin && String(employee.managerId) !== String(req.user._id)) {
+    if (!isAdmin(req.user) && String(employee.managerId) !== String(req.user._id)) {
       fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'You can only message your own team' });
     }
@@ -85,18 +84,14 @@ router.post('/', requireAuth, upload.single('audio'), async (req, res) => {
   }
 });
 
-// GET /api/voice-messages - inbox/sent list
-//   employee -> messages sent to them (their inbox)
-//   manager  -> messages they've sent (optionally ?employeeId= to filter to one)
 router.get('/', requireAuth, async (req, res) => {
   try {
     let filter = {};
 
-    if (req.user.role === 'employee' && !req.user.isSuperAdmin) {
+    if (req.user.role === 'employee' && !isAdmin(req.user)) {
       filter.recipientId = req.user._id;
     } else {
-      // manager or super admin viewing what they've sent
-      filter.senderId = req.user.isSuperAdmin && req.query.senderId
+      filter.senderId = isAdmin(req.user) && req.query.senderId
         ? req.query.senderId
         : req.user._id;
       if (req.query.employeeId) filter.recipientId = req.query.employeeId;
@@ -114,9 +109,6 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/voice-messages/:id/audio - stream the actual audio file.
-// Only the sender or recipient (or Super Admin) may access it - this is
-// personal audio, not something visible more broadly like task notes.
 router.get('/:id/audio', requireAuth, async (req, res) => {
   try {
     const message = await VoiceMessage.findById(req.params.id);
@@ -125,7 +117,7 @@ router.get('/:id/audio', requireAuth, async (req, res) => {
     const isParty =
       String(message.senderId) === String(req.user._id) ||
       String(message.recipientId) === String(req.user._id);
-    if (!isParty && !req.user.isSuperAdmin) {
+    if (!isParty && !isAdmin(req.user)) {
       return res.status(403).json({ error: 'Not permitted to access this message' });
     }
 
@@ -142,8 +134,6 @@ router.get('/:id/audio', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/voice-messages/:id/listened - recipient marks a message as
-// listened. Lets the manager see it was actually heard.
 router.patch('/:id/listened', requireAuth, async (req, res) => {
   try {
     const message = await VoiceMessage.findById(req.params.id);

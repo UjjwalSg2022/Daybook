@@ -7,11 +7,13 @@ const logActivity = require('../utils/logActivity');
 
 const router = express.Router();
 
-// POST /api/notes - employee writes a note. Optionally linked to one task,
-// optionally changing that task's status in the same action.
+function isAdmin(user) {
+  return user.role === 'admin' || user.isSuperAdmin === true;
+}
+
 router.post('/', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin && req.user.role !== 'employee') {
+    if (!isAdmin(req.user) && req.user.role !== 'employee') {
       return res.status(403).json({ error: 'Only employees write notes' });
     }
 
@@ -72,26 +74,19 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/notes - reverse-chronological log.
-//   employee -> their own notes
-//   manager  -> ?employeeId= required, read-only access to that employee's notes
 router.get('/', requireAuth, async (req, res) => {
   try {
     let authorId;
 
-    if (req.user.role === 'employee' && !req.user.isSuperAdmin) {
+    if (req.user.role === 'employee' && !isAdmin(req.user)) {
       authorId = req.user._id;
     } else {
-      // manager or super admin viewing an employee's notes
       if (!req.query.employeeId) {
         return res.status(400).json({ error: 'employeeId is required' });
       }
       const employee = await User.findById(req.query.employeeId);
       if (!employee) return res.status(404).json({ error: 'Employee not found' });
-      if (
-        !req.user.isSuperAdmin &&
-        String(employee.managerId) !== String(req.user._id)
-      ) {
+      if (!isAdmin(req.user) && String(employee.managerId) !== String(req.user._id)) {
         return res.status(403).json({ error: 'Not your team member' });
       }
       authorId = employee._id;

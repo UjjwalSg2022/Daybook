@@ -7,6 +7,15 @@ import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
 import TaskDetail from './pages/TaskDetail.jsx';
 
+// A logged-in user's dashboard is decided by role - 'admin' and 'manager'
+// both land on the Manager Dashboard component, which shows different
+// content internally depending on which one it actually is. isSuperAdmin is
+// also checked so accounts that predate the 'admin' role (still role:
+// 'manager' under the hood) keep routing correctly.
+function isAdminOrManager(user) {
+  return user.role === 'admin' || user.role === 'manager' || user.isSuperAdmin === true;
+}
+
 function Protected({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <FullPageLoading />;
@@ -29,7 +38,7 @@ function HomeRedirect() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   return (
-    <Navigate to={user.role === 'manager' ? '/manager' : '/employee'} replace />
+    <Navigate to={isAdminOrManager(user) ? '/manager' : '/employee'} replace />
   );
 }
 

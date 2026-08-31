@@ -8,11 +8,14 @@ import AdminUserManagement from '../components/AdminUserManagement.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
 
+function isAdmin(user) {
+  return user?.role === 'admin' || user?.isSuperAdmin === true;
+}
+
 function AssignTaskModal({ team, onClose, onCreated }) {
   const [assignedTo, setAssignedTo] = useState(team[0]?.id || '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState('daily');
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +29,6 @@ function AssignTaskModal({ team, onClose, onCreated }) {
         assignedTo,
         title,
         description,
-        type,
         dueDate: dueDate || null,
       });
       onCreated();
@@ -87,31 +89,16 @@ function AssignTaskModal({ team, onClose, onCreated }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wide text-ink-soft mb-1.5">
-              Type
-            </label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="w-full border border-rule bg-white/60 rounded-sm px-3 py-2"
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wide text-ink-soft mb-1.5">
-              Due date
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full border border-rule bg-white/60 rounded-sm px-3 py-2"
-            />
-          </div>
+        <div>
+          <label className="block font-mono text-xs uppercase tracking-wide text-ink-soft mb-1.5">
+            Due date
+          </label>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="w-full border border-rule bg-white/60 rounded-sm px-3 py-2"
+          />
         </div>
 
         {error && (
@@ -162,82 +149,86 @@ export default function ManagerDashboard() {
     <div className="min-h-screen flex flex-col">
       <Header subtitle="Team overview" />
       <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
-        {user?.isSuperAdmin && <AdminUserManagement />}
+        {isAdmin(user) && <AdminUserManagement />}
 
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-lg font-semibold text-ink">Your team</h2>
-          <button
-            onClick={() => setModalOpen(true)}
-            disabled={team.length === 0}
-            className="bg-ledger text-paper text-sm font-medium rounded-sm px-4 py-2 hover:bg-ledger-dark transition-colors disabled:opacity-50"
-          >
-            + Assign new task
-          </button>
-        </div>
-
-        {loading ? (
-          <p className="font-mono text-sm text-ink-soft">Loading…</p>
-        ) : team.length === 0 ? (
-          <p className="font-mono text-sm text-ink-soft border border-dashed border-rule rounded-sm p-6 text-center">
-            No employees are linked to you yet. Ask the Super Admin to link team
-            members to your account.
-          </p>
-        ) : (
-                    <div
-            className="grid gap-4"
-            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
-          >
-            {team.map((member) => (
-              <div
-                key={member.id}
-                className="border border-rule rounded-sm p-5 bg-white/40"
+        {!isAdmin(user) && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-display text-lg font-semibold text-ink">Your team</h2>
+              <button
+                onClick={() => setModalOpen(true)}
+                disabled={team.length === 0}
+                className="bg-ledger text-paper text-sm font-medium rounded-sm px-4 py-2 hover:bg-ledger-dark transition-colors disabled:opacity-50"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-display text-lg font-semibold text-ink">
-                      {member.name}
-                    </h3>
-                    <p className="font-mono text-[11px] text-ink-soft">
-                      {member.email}
-                    </p>
-                  </div>
-                  <div className="font-display text-2xl font-semibold text-ink">
-                    {member.taskCounts.total}
-                  </div>
-                </div>
+                + Assign new task
+              </button>
+            </div>
 
-                <div className="flex gap-2 mt-4">
-                  <div className="flex-1 text-center border border-rule rounded-sm py-1.5">
-                    <div className="font-mono text-sm text-ink-soft">
-                      {member.taskCounts.pending}
+            {loading ? (
+              <p className="font-mono text-sm text-ink-soft">Loading…</p>
+            ) : team.length === 0 ? (
+              <p className="font-mono text-sm text-ink-soft border border-dashed border-rule rounded-sm p-6 text-center">
+                No employees are linked to you yet. Ask the Admin to link team
+                members to your account.
+              </p>
+            ) : (
+              <div
+                className="grid gap-4"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
+              >
+                {team.map((member) => (
+                  <div
+                    key={member.id}
+                    className="border border-rule rounded-sm p-5 bg-white/40"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-display text-lg font-semibold text-ink">
+                          {member.name}
+                        </h3>
+                        <p className="font-mono text-[11px] text-ink-soft">
+                          {member.email}
+                        </p>
+                      </div>
+                      <div className="font-display text-2xl font-semibold text-ink">
+                        {member.taskCounts.total}
+                      </div>
                     </div>
-                    <div className="font-mono text-[10px] uppercase text-ink-soft/70">
-                      Pending
-                    </div>
-                  </div>
-                  <div className="flex-1 text-center border border-gold/40 rounded-sm py-1.5">
-                    <div className="font-mono text-sm text-gold">
-                      {member.taskCounts.inProgress}
-                    </div>
-                    <div className="font-mono text-[10px] uppercase text-gold/80">
-                      In progress
-                    </div>
-                  </div>
-                  <div className="flex-1 text-center border border-ledger/40 rounded-sm py-1.5">
-                    <div className="font-mono text-sm text-ledger">
-                      {member.taskCounts.done}
-                    </div>
-                    <div className="font-mono text-[10px] uppercase text-ledger/80">
-                      Done
-                    </div>
-                  </div>
-                </div>
 
-                <ViewTasksLink employeeId={member.id} />
-                <VoiceMessageToggle employeeId={member.id} />
+                    <div className="flex gap-2 mt-4">
+                      <div className="flex-1 text-center border border-rule rounded-sm py-1.5">
+                        <div className="font-mono text-sm text-ink-soft">
+                          {member.taskCounts.pending}
+                        </div>
+                        <div className="font-mono text-[10px] uppercase text-ink-soft/70">
+                          Pending
+                        </div>
+                      </div>
+                      <div className="flex-1 text-center border border-gold/40 rounded-sm py-1.5">
+                        <div className="font-mono text-sm text-gold">
+                          {member.taskCounts.inProgress}
+                        </div>
+                        <div className="font-mono text-[10px] uppercase text-gold/80">
+                          In progress
+                        </div>
+                      </div>
+                      <div className="flex-1 text-center border border-ledger/40 rounded-sm py-1.5">
+                        <div className="font-mono text-sm text-ledger">
+                          {member.taskCounts.done}
+                        </div>
+                        <div className="font-mono text-[10px] uppercase text-ledger/80">
+                          Done
+                        </div>
+                      </div>
+                    </div>
+
+                    <ViewTasksLink employeeId={member.id} />
+                    <VoiceMessageToggle employeeId={member.id} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </main>
       <Footer />
@@ -276,7 +267,7 @@ function ViewTasksLink({ employeeId }) {
       >
         {open ? 'Hide tasks ▲' : 'View tasks ▼'}
       </button>
-            {open && (
+      {open && (
         <ul className="mt-3 space-y-2">
           {(tasks || []).map((t) => (
             <li key={t._id}>

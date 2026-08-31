@@ -13,11 +13,12 @@ export default function TaskDetail() {
   const [notes, setNotes] = useState([]);
   const [activity, setActivity] = useState([]);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', type: 'adhoc', dueDate: '' });
+  const [form, setForm] = useState({ title: '', description: '', type: 'daily', dueDate: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const isManagerView = user?.role === 'manager' || user?.isSuperAdmin;
+  const isManagerView =
+    user?.role === 'manager' || user?.role === 'admin' || user?.isSuperAdmin;
 
   async function load() {
     const res = await api.get(`/tasks/${id}`);
@@ -62,7 +63,7 @@ export default function TaskDetail() {
     load();
   }
 
-   if (!task) {
+  if (!task) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
@@ -73,14 +74,14 @@ export default function TaskDetail() {
   }
 
   const isOwner = user && task.assignedTo === user.id;
-  const canEditText = isOwner || isManagerView; // open-edit decision, build phase
+  const canEditText = isOwner || isManagerView;
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header subtitle="Task record" />
       <main className="max-w-3xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
         <Link
-          to={user?.role === 'manager' || user?.isSuperAdmin ? '/manager' : '/employee'}
+          to={isManagerView ? '/manager' : '/employee'}
           className="font-mono text-xs uppercase tracking-wide text-ink-soft hover:text-ledger"
         >
           ← Back to dashboard
@@ -105,7 +106,7 @@ export default function TaskDetail() {
                 )}
               </div>
 
-                            {canEditText && (
+              {canEditText && (
                 <button
                   onClick={() => setEditing(true)}
                   className="mt-4 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-ledger border border-ledger/50 rounded-sm px-3 py-1.5 hover:bg-ledger/10 hover:border-ledger transition-colors"
@@ -195,7 +196,7 @@ export default function TaskDetail() {
 
           {isOwner && !editing && (
             <div className="flex gap-2 mt-5 pt-5 border-t border-rule">
-                            {['pending', 'in_progress', 'done'].map((s) => {
+              {['pending', 'in_progress', 'done'].map((s) => {
                 const activeStyles = {
                   pending: 'border-ink-soft/60 text-ink-soft bg-ink-soft/10',
                   in_progress: 'border-gold text-gold bg-gold/15',
@@ -221,7 +222,6 @@ export default function TaskDetail() {
           )}
         </div>
 
-        {/* Linked notes */}
         <section className="mt-8">
           <h3 className="font-display text-lg font-semibold text-ink mb-3">
             Linked notes
@@ -242,7 +242,6 @@ export default function TaskDetail() {
           )}
         </section>
 
-        {/* Activity log - manager/super admin only */}
         {isManagerView && (
           <section className="mt-8">
             <h3 className="font-display text-lg font-semibold text-ink mb-3">

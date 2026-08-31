@@ -13,11 +13,12 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ['employee', 'manager'],
+      enum: ['employee', 'manager', 'admin'],
       required: true,
     },
-    // Hidden super-admin flag. Never exposed in any list/admin UI -
-    // only set directly via scripts/createSuperAdmin.js
+    // Legacy flag from before 'admin' was its own role value. No longer
+    // read by any authorization logic (role === 'admin' is now the single
+    // source of truth) - kept only so old documents don't fail validation.
     isSuperAdmin: { type: Boolean, default: false },
     // Only relevant for employees - who they report to
     managerId: {
@@ -30,10 +31,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Never leak the password hash to API responses. isSuperAdmin IS included
-// here deliberately - the logged-in user needs to know their own flag so
-// the frontend can show admin-only UI. This is different from exposing it
-// in general user LISTS to other people, which stays hidden elsewhere.
+// Never leak the password hash to API responses.
 userSchema.methods.toSafeObject = function () {
   return {
     id: this._id,
