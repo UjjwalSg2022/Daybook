@@ -7,6 +7,9 @@ import VoiceMessageItem from '../components/VoiceMessageItem.jsx';
 import AdminUserManagement from '../components/AdminUserManagement.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
+import ExportReport from '../components/ExportReport.jsx';
+import { isOverdue } from '../utils/dueDate.js';
+
 
 function isAdmin(user) {
   return user?.role === 'admin' || user?.isSuperAdmin === true;
@@ -151,6 +154,8 @@ export default function ManagerDashboard() {
       <main className="max-w-5xl mx-auto px-6 md:px-10 py-8 ledger-page flex-1 w-full">
         {isAdmin(user) && <AdminUserManagement />}
 
+        <ExportReport />
+
         {!isAdmin(user) && (
           <>
             <div className="flex items-center justify-between mb-6">
@@ -271,9 +276,13 @@ function ViewTasksLink({ employeeId }) {
         <ul className="mt-3 space-y-2">
           {(tasks || []).map((t) => (
             <li key={t._id}>
-              <Link
+                            <Link
                 to={`/task/${t._id}`}
-                className="flex items-center justify-between gap-3 border border-rule rounded-sm px-3 py-2 bg-white/40 hover:bg-white/80 hover:border-ledger transition-colors group"
+                className={`flex items-center justify-between gap-3 border rounded-sm px-3 py-2 transition-colors group ${
+                  isOverdue(t)
+                    ? 'border-stamp/50 bg-stamp/5 hover:bg-stamp/10'
+                    : 'border-rule bg-white/40 hover:bg-white/80 hover:border-ledger'
+                }`}
               >
                 <span className="min-w-0">
                   <span className="text-sm text-ink group-hover:text-ledger transition-colors">
@@ -282,6 +291,11 @@ function ViewTasksLink({ employeeId }) {
                   <span className="font-mono text-[10px] text-ink-soft uppercase ml-1">
                     {t.status}
                   </span>
+                  {isOverdue(t) && (
+                    <span className="font-mono text-[10px] text-stamp uppercase ml-1">
+                      · Overdue
+                    </span>
+                  )}
                 </span>
                 <svg
                   viewBox="0 0 16 16"

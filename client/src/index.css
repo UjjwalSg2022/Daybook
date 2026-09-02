@@ -8,7 +8,6 @@
     @apply bg-paper text-ink font-body;
   }
 
-  /* Faint ruled-paper texture across the whole app - the ledger signature */
   body {
     background-image: repeating-linear-gradient(
       to bottom,
@@ -18,8 +17,6 @@
     );
   }
 
-  /* Chrome/Edge tint autofilled inputs blue by default, which clashes with
-     the paper/ink palette. Force them back to our own colors instead. */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus {
@@ -31,25 +28,11 @@
 }
 
 @layer components {
-  /* Left margin rule, like a bound ledger page */
   .ledger-page {
     @apply relative pl-6 md:pl-10;
   }
   .ledger-page::before {
     content: '';
     @apply absolute left-3 md:left-6 top-0 bottom-0 w-px bg-stamp/40;
-  }
-
-  .status-badge {
-    @apply inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-mono uppercase tracking-wide;
-  }
-  .status-pending {
-    @apply status-badge border-ink-soft/40 text-ink-soft bg-transparent;
-  }
-  .status-in_progress {
-    @apply status-badge border-gold text-gold bg-gold/10;
-  }
-  .status-done {
-    @apply status-badge border-ledger text-ledger bg-ledger/10;
   }
 }

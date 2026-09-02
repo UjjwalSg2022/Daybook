@@ -5,8 +5,10 @@ const Note = require('../models/Note');
 const ActivityLog = require('../models/ActivityLog');
 const requireAuth = require('../middleware/auth');
 const logActivity = require('../utils/logActivity');
-
+const notify = require('../utils/notify');
 const router = express.Router();
+
+
 
 // Fields a manager or employee is allowed to edit on a task's text/details.
 // Status is intentionally excluded - it's employee-owned (see PATCH /:id/status).
@@ -58,6 +60,13 @@ router.post('/', requireAuth, async (req, res) => {
       action: 'created',
       performedBy: req.user._id,
       detail: { title, assignedTo },
+    });
+
+    await notify({
+      recipientId: employee._id,
+      type: 'task_assigned',
+      message: `You've been assigned a new task: "${title}"`,
+      taskId: task._id,
     });
 
     res.status(201).json({ task });
@@ -202,6 +211,15 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       performedBy: req.user._id,
       detail: { from, to: status },
     });
+
+    if (task.assignedBy) {
+      await notify({
+        recipientId: task.assignedBy,
+        type: 'status_changed',
+        message: `${req.user.name} changed "${task.title}" to ${status.replace('_', ' ')}`,
+        taskId: task._id,
+      });
+    }
 
     res.json({ task });
   } catch (err) {

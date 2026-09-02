@@ -5,6 +5,7 @@ import Footer from '../components/Footer.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import VoiceMessageItem from '../components/VoiceMessageItem.jsx';
 import api from '../api/client';
+import { isOverdue } from '../utils/dueDate.js';
 
 function StatChip({ label, value, accent }) {
   return (
@@ -70,6 +71,7 @@ export default function EmployeeDashboard() {
     in_progress: tasks.filter((t) => t.status === 'in_progress').length,
     done: tasks.filter((t) => t.status === 'done').length,
   };
+  const overdueCount = tasks.filter(isOverdue).length;
   const unheardCount = voiceMessages.filter((m) => !m.listenedAt).length;
 
   return (
@@ -86,6 +88,9 @@ export default function EmployeeDashboard() {
           <StatChip label="In progress" value={counts.in_progress} accent="text-gold" />
           <StatChip label="Done" value={counts.done} accent="text-ledger" />
           <StatChip label="Total" value={tasks.length} accent="text-ink" />
+          {overdueCount > 0 && (
+            <StatChip label="Overdue" value={overdueCount} accent="text-stamp" />
+          )}
           {voiceMessages.length > 0 && (
             <StatChip
               label="Voice inbox"
@@ -112,7 +117,11 @@ export default function EmployeeDashboard() {
                 {tasks.map((task) => (
                   <li
                     key={task._id}
-                    className="border border-rule rounded-sm p-4 bg-white/40 hover:bg-white/70 transition-colors"
+                    className={`border rounded-sm p-4 transition-colors ${
+                      isOverdue(task)
+                        ? 'border-stamp/50 bg-stamp/5 hover:bg-stamp/10'
+                        : 'border-rule bg-white/40 hover:bg-white/70'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -125,11 +134,12 @@ export default function EmployeeDashboard() {
                         <p className="text-sm text-ink-soft mt-1 line-clamp-2">
                           {task.description || 'No description'}
                         </p>
-                        <div className="flex items-center gap-3 mt-2 font-mono text-[11px] text-ink-soft uppercase tracking-wide">
-                          <span>{task.type}</span>
+                        <div className="flex items-center gap-3 mt-2 font-mono text-[11px] uppercase tracking-wide">
+                          <span className="text-ink-soft">{task.type}</span>
                           {task.dueDate && (
-                            <span>
+                            <span className={isOverdue(task) ? 'text-stamp font-semibold' : 'text-ink-soft'}>
                               Due {new Date(task.dueDate).toLocaleDateString()}
+                              {isOverdue(task) && ' · Overdue'}
                             </span>
                           )}
                         </div>
@@ -137,7 +147,7 @@ export default function EmployeeDashboard() {
                       <StatusBadge status={task.status} />
                     </div>
 
-                                        <div className="flex gap-2 mt-3">
+                    <div className="flex gap-2 mt-3">
                       {['pending', 'in_progress', 'done'].map((s) => {
                         const activeStyles = {
                           pending: 'border-ink-soft/60 text-ink-soft bg-ink-soft/10',
@@ -236,7 +246,7 @@ export default function EmployeeDashboard() {
             </ul>
           </section>
         )}
-            </main>
+      </main>
       <Footer />
     </div>
   );

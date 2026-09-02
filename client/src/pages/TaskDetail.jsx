@@ -5,6 +5,8 @@ import Footer from '../components/Footer.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client';
+import { isOverdue } from '../utils/dueDate.js';
+
 
 export default function TaskDetail() {
   const { id } = useParams();
@@ -99,10 +101,13 @@ export default function TaskDetail() {
               <p className="text-ink-soft mt-3 whitespace-pre-wrap">
                 {task.description || 'No description'}
               </p>
-              <div className="flex gap-4 mt-4 font-mono text-[11px] uppercase tracking-wide text-ink-soft">
-                <span>{task.type}</span>
+                            <div className="flex gap-4 mt-4 font-mono text-[11px] uppercase tracking-wide">
+                <span className="text-ink-soft">{task.type}</span>
                 {task.dueDate && (
-                  <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
+                  <span className={isOverdue(task) ? 'text-stamp font-semibold' : 'text-ink-soft'}>
+                    Due {new Date(task.dueDate).toLocaleDateString()}
+                    {isOverdue(task) && ' · Overdue'}
+                  </span>
                 )}
               </div>
 

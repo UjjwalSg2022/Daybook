@@ -16,6 +16,11 @@ const taskRoutes = require('./routes/tasks');
 const noteRoutes = require('./routes/notes');
 const activityRoutes = require('./routes/activityLog');
 const voiceMessageRoutes = require('./routes/voiceMessages');
+const notificationRoutes = require('./routes/notifications');
+const reportRoutes = require('./routes/reports');
+
+
+
 
 const app = express();
 
@@ -32,6 +37,10 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/voice-messages', voiceMessageRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
+
+
 
 // Fallback 404 for unmatched API routes
 app.use('/api', (req, res) => {

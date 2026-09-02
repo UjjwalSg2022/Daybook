@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 export default function Header({ subtitle }) {
   const { user, logout } = useAuth();
@@ -17,7 +18,8 @@ export default function Header({ subtitle }) {
         </div>
 
         {user && (
-          <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <NotificationBell />
             <div className="text-right hidden sm:block">
               <div className="text-sm font-medium text-ink">{user.name}</div>
               <div className="font-mono text-[11px] text-ink-soft uppercase tracking-wide">

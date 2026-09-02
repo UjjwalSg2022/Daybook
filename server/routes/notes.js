@@ -4,6 +4,7 @@ const Task = require('../models/Task');
 const User = require('../models/User');
 const requireAuth = require('../middleware/auth');
 const logActivity = require('../utils/logActivity');
+const notify = require('../utils/notify');
 
 const router = express.Router();
 
@@ -48,6 +49,15 @@ router.post('/', requireAuth, async (req, res) => {
           performedBy: req.user._id,
           detail: { from, to: statusChange, viaNote: true },
         });
+
+        if (task.assignedBy) {
+          await notify({
+            recipientId: task.assignedBy,
+            type: 'status_changed',
+            message: `${req.user.name} changed "${task.title}" to ${statusChange.replace('_', ' ')}`,
+            taskId: task._id,
+          });
+        }
       }
     }
 
