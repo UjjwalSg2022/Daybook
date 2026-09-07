@@ -80,7 +80,7 @@ export default function NotificationBell() {
       <button
         onClick={handleOpen}
         aria-label="Notifications"
-        className="relative w-9 h-9 flex items-center justify-center rounded-sm border border-rule hover:bg-paper-dark transition-colors"
+                className="relative w-10 h-10 flex items-center justify-center rounded-sm border border-rule hover:bg-paper-dark transition-colors"
       >
         <svg viewBox="0 0 20 20" width="16" height="16" fill="none" className="text-ink-soft">
           <path
