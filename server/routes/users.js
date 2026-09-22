@@ -10,11 +10,17 @@ const requireRole = require('../middleware/role');
 
 const router = express.Router();
 
+function isAdmin(user) {
+  return user.role === 'admin' || user.isSuperAdmin === true;
+}
+
 // GET /api/users/my-team
-// Manager dashboard data: each linked employee plus a task-count breakdown.
+// Manager dashboard data: every employee who has this manager anywhere in
+// their managerIds list, plus a task-count breakdown. An employee with
+// several managers shows up on each of their dashboards independently.
 router.get('/my-team', requireAuth, requireRole('manager'), async (req, res) => {
   try {
-    const employees = await User.find({ managerId: req.user._id }).select(
+    const employees = await User.find({ managerIds: req.user._id }).select(
       '-passwordHash'
     );
 
@@ -41,12 +47,12 @@ router.get('/my-team', requireAuth, requireRole('manager'), async (req, res) => 
   }
 });
 
-// GET /api/users/managers - Super Admin only. Powers the "assign to
-// manager" dropdown when creating a new employee account.
+// GET /api/users/managers - Admin only. Powers the "reports to" multi-pick
+// list when creating/editing an employee account.
 router.get('/managers', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can view this' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can view this' });
     }
     const managers = await User.find({ role: 'manager' }).select('name email');
     res.json({ managers });
@@ -56,16 +62,15 @@ router.get('/managers', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/users - Super Admin only. Every manager/employee account, so the
-// admin can see who already has credentials and reset anyone's password.
+// GET /api/users - Admin only. Every manager/employee account.
 router.get('/', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can view all accounts' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can view all accounts' });
     }
-    const users = await User.find({ isSuperAdmin: { $ne: true } })
+    const users = await User.find({ role: { $ne: 'admin' }, isSuperAdmin: { $ne: true } })
       .select('-passwordHash')
-      .populate('managerId', 'name')
+      .populate('managerIds', 'name')
       .sort({ createdAt: -1 });
     res.json({ users });
   } catch (err) {
@@ -74,16 +79,31 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/users - Super Admin creates a manager or employee account with
-// an explicit password chosen right here, to hand over directly. This is
-// the UI equivalent of scripts/createUser.js.
+// Validates a managerIds array from the request body: must be a non-empty
+// array of IDs that all belong to real manager accounts. Returns the
+// deduplicated array of ObjectIds, or throws an object with .status/.error
+// for the route handler to respond with.
+async function resolveManagerIds(managerIds) {
+  if (!Array.isArray(managerIds) || managerIds.length === 0) {
+    throw { status: 400, error: 'Employees must be linked to at least one manager' };
+  }
+  const uniqueIds = [...new Set(managerIds.map(String))];
+  const managers = await User.find({ _id: { $in: uniqueIds }, role: 'manager' });
+  if (managers.length !== uniqueIds.length) {
+    throw { status: 400, error: 'One or more selected managers are invalid' };
+  }
+  return managers.map((m) => m._id);
+}
+
+// POST /api/users - Admin creates a manager or employee account. Employees
+// can be linked to more than one manager at once.
 router.post('/', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can create accounts' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can create accounts' });
     }
 
-    const { name, email, role, password, managerId } = req.body;
+    const { name, email, role, password, managerIds } = req.body;
     if (!name || !email || !role || !password) {
       return res.status(400).json({ error: 'Name, email, role, and password are required' });
     }
@@ -99,16 +119,13 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'A user with this email already exists' });
     }
 
-    let linkedManagerId = null;
+    let resolvedManagerIds = [];
     if (role === 'employee') {
-      if (!managerId) {
-        return res.status(400).json({ error: 'Employees must be linked to a manager' });
+      try {
+        resolvedManagerIds = await resolveManagerIds(managerIds);
+      } catch (e) {
+        return res.status(e.status || 400).json({ error: e.error || 'Invalid managers' });
       }
-      const manager = await User.findById(managerId);
-      if (!manager || manager.role !== 'manager') {
-        return res.status(400).json({ error: 'Invalid manager selected' });
-      }
-      linkedManagerId = manager._id;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -118,7 +135,7 @@ router.post('/', requireAuth, async (req, res) => {
       email: email.toLowerCase().trim(),
       passwordHash,
       role,
-      managerId: linkedManagerId,
+      managerIds: resolvedManagerIds,
       mustChangePassword: false,
     });
 
@@ -129,22 +146,21 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id - Super Admin edits any detail on an account: name,
-// email (their login username), role, or which manager an employee reports
-// to. Password changes go through the separate reset-password route.
+// PATCH /api/users/:id - Admin edits any detail on an account, including
+// the full set of managers an employee reports to.
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can edit accounts' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can edit accounts' });
     }
 
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.isSuperAdmin) {
-      return res.status(403).json({ error: 'The Super Admin account cannot be edited here' });
+    if (isAdmin(user)) {
+      return res.status(403).json({ error: 'The Admin account cannot be edited here' });
     }
 
-    const { name, email, role, managerId } = req.body;
+    const { name, email, role, managerIds } = req.body;
 
     if (email && email.toLowerCase().trim() !== user.email) {
       const existing = await User.findOne({ email: email.toLowerCase().trim() });
@@ -163,7 +179,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
       // Switching a manager to employee would orphan anyone still reporting
       // to them - block it until those employees are reassigned.
       if (user.role === 'manager' && role === 'employee') {
-        const linkedCount = await User.countDocuments({ managerId: user._id });
+        const linkedCount = await User.countDocuments({ managerIds: user._id });
         if (linkedCount > 0) {
           return res.status(400).json({
             error: `Reassign ${user.name}'s ${linkedCount} employee(s) to another manager before changing their role`,
@@ -171,18 +187,15 @@ router.patch('/:id', requireAuth, async (req, res) => {
         }
       }
       user.role = role;
-      if (role === 'manager') user.managerId = null;
+      if (role === 'manager') user.managerIds = [];
     }
 
-    if (user.role === 'employee' && managerId !== undefined) {
-      if (!managerId) {
-        return res.status(400).json({ error: 'Employees must be linked to a manager' });
+    if (user.role === 'employee' && managerIds !== undefined) {
+      try {
+        user.managerIds = await resolveManagerIds(managerIds);
+      } catch (e) {
+        return res.status(e.status || 400).json({ error: e.error || 'Invalid managers' });
       }
-      const manager = await User.findById(managerId);
-      if (!manager || manager.role !== 'manager') {
-        return res.status(400).json({ error: 'Invalid manager selected' });
-      }
-      user.managerId = manager._id;
     }
 
     await user.save();
@@ -194,12 +207,11 @@ router.patch('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id/reset-password - Super Admin sets a new password for
-// any account directly. This is the product's only "forgot password" flow.
+// PATCH /api/users/:id/reset-password
 router.patch('/:id/reset-password', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can reset passwords' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can reset passwords' });
     }
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 8) {
@@ -220,24 +232,21 @@ router.patch('/:id/reset-password', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id - Super Admin removes an account entirely. Cascades
-// to clean up anything solely tied to that account (their tasks, notes,
-// voice messages, and the activity log entries for those tasks) so nothing
-// is left dangling with a reference to a user that no longer exists.
+// DELETE /api/users/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Only the Super Admin can delete accounts' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the Admin can delete accounts' });
     }
 
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.isSuperAdmin) {
-      return res.status(403).json({ error: 'The Super Admin account cannot be deleted' });
+    if (isAdmin(user)) {
+      return res.status(403).json({ error: 'The Admin account cannot be deleted' });
     }
 
     if (user.role === 'manager') {
-      const linkedCount = await User.countDocuments({ managerId: user._id });
+      const linkedCount = await User.countDocuments({ managerIds: user._id });
       if (linkedCount > 0) {
         return res.status(400).json({
           error: `Reassign or delete ${user.name}'s ${linkedCount} employee(s) before deleting this manager`,

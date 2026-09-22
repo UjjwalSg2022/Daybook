@@ -6,22 +6,26 @@ const requireAuth = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/activity/:taskId
-// The activity log is the primary safeguard now that task text is
-// open-edit in v1 (see PRD "Decision" note) - visible to Manager and
-// Super Admin only, never to the employee, and never editable by anyone.
+function isAdmin(user) {
+  return user.role === 'admin' || user.isSuperAdmin === true;
+}
+
+function managesEmployee(managerId, employee) {
+  return (employee.managerIds || []).some((id) => String(id) === String(managerId));
+}
+
 router.get('/:taskId', requireAuth, async (req, res) => {
   try {
-    if (req.user.role !== 'manager' && !req.user.isSuperAdmin) {
+    if (req.user.role !== 'manager' && !isAdmin(req.user)) {
       return res.status(403).json({ error: 'Activity log is manager/admin only' });
     }
 
     const task = await Task.findById(req.params.taskId);
     if (!task) return res.status(404).json({ error: 'Task not found' });
 
-    if (!req.user.isSuperAdmin) {
+    if (!isAdmin(req.user)) {
       const employee = await User.findById(task.assignedTo);
-      if (!employee || String(employee.managerId) !== String(req.user._id)) {
+      if (!employee || !managesEmployee(req.user._id, employee)) {
         return res.status(403).json({ error: 'Not your team member' });
       }
     }

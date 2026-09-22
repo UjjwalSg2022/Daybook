@@ -13,6 +13,7 @@ function formatTime(sec) {
 // with a stamp-red playhead, and a mono time readout. Replaces the native
 // browser <audio controls> element, which looks completely out of place
 // against the paper/ink design.
+
 export default function AudioPlayer({ src, onPlay }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);

@@ -6,30 +6,34 @@ const ActivityLog = require('../models/ActivityLog');
 const requireAuth = require('../middleware/auth');
 const logActivity = require('../utils/logActivity');
 const notify = require('../utils/notify');
+
 const router = express.Router();
 
-
-
-// Fields a manager or employee is allowed to edit on a task's text/details.
-// Status is intentionally excluded - it's employee-owned (see PATCH /:id/status).
+const TASK_TYPES = ['daily', 'weekly'];
 const EDITABLE_FIELDS = ['title', 'description', 'type', 'dueDate'];
 
-// Confirms the requesting user is allowed to see/act on this specific task:
-// its own assignee, that assignee's manager, or the (hidden) super admin.
+function isAdmin(user) {
+  return user.role === 'admin' || user.isSuperAdmin === true;
+}
+
+// Is this manager one of the employee's linked managers?
+function managesEmployee(managerId, employee) {
+  return (employee.managerIds || []).some((id) => String(id) === String(managerId));
+}
+
 async function canAccessTask(user, task) {
-  if (user.isSuperAdmin) return true;
+  if (isAdmin(user)) return true;
   if (String(task.assignedTo) === String(user._id)) return true;
   if (user.role === 'manager') {
     const employee = await User.findById(task.assignedTo);
-    return employee && String(employee.managerId) === String(user._id);
+    return employee && managesEmployee(user._id, employee);
   }
   return false;
 }
 
-// POST /api/tasks - manager creates a task for one of their linked employees
 router.post('/', requireAuth, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin && req.user.role !== 'manager') {
+    if (!isAdmin(req.user) && req.user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can create tasks' });
     }
 
@@ -37,19 +41,22 @@ router.post('/', requireAuth, async (req, res) => {
     if (!title || !assignedTo) {
       return res.status(400).json({ error: 'Title and assignedTo are required' });
     }
+    if (type && !TASK_TYPES.includes(type)) {
+      return res.status(400).json({ error: 'Invalid task type' });
+    }
 
     const employee = await User.findById(assignedTo);
     if (!employee || employee.role !== 'employee') {
       return res.status(400).json({ error: 'assignedTo must be a valid employee' });
     }
-    if (!req.user.isSuperAdmin && String(employee.managerId) !== String(req.user._id)) {
+    if (!isAdmin(req.user) && !managesEmployee(req.user._id, employee)) {
       return res.status(403).json({ error: 'You can only assign tasks to your own team' });
     }
 
     const task = await Task.create({
       title,
       description: description || '',
-      type: type || 'adhoc',
+      type: type || 'daily',
       dueDate: dueDate || null,
       assignedTo,
       assignedBy: req.user._id,
@@ -76,26 +83,23 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/tasks - scoped list:
-//   employee -> only their own tasks
-//   manager  -> tasks for their linked employees (optionally ?employeeId=)
 router.get('/', requireAuth, async (req, res) => {
   try {
     let filter = {};
 
-    if (req.user.isSuperAdmin) {
+    if (isAdmin(req.user)) {
       if (req.query.employeeId) filter.assignedTo = req.query.employeeId;
     } else if (req.user.role === 'employee') {
       filter.assignedTo = req.user._id;
     } else if (req.user.role === 'manager') {
       if (req.query.employeeId) {
         const employee = await User.findById(req.query.employeeId);
-        if (!employee || String(employee.managerId) !== String(req.user._id)) {
+        if (!employee || !managesEmployee(req.user._id, employee)) {
           return res.status(403).json({ error: 'Not your team member' });
         }
         filter.assignedTo = req.query.employeeId;
       } else {
-        const teamIds = (await User.find({ managerId: req.user._id }).select('_id')).map(
+        const teamIds = (await User.find({ managerIds: req.user._id }).select('_id')).map(
           (u) => u._id
         );
         filter.assignedTo = { $in: teamIds };
@@ -110,7 +114,6 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/tasks/:id - expanded view: full task, status/edit history, linked notes
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -122,9 +125,8 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     const notes = await Note.find({ linkedTaskId: task._id }).sort({ createdAt: -1 });
 
-    // Activity log is visible to Manager and Super Admin only (PRD 6.4)
     let activity = [];
-    if (req.user.isSuperAdmin || req.user.role === 'manager') {
+    if (isAdmin(req.user) || req.user.role === 'manager') {
       activity = await ActivityLog.find({ taskId: task._id }).sort({ timestamp: -1 });
     }
 
@@ -135,11 +137,6 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/tasks/:id - edit title/description/type/dueDate.
-// Open-edit decision (PRD, build-phase): BOTH the assigned employee and their
-// manager may edit these fields, not just the manager. Every changed field is
-// written to the Activity Log so there's still a record of what changed and
-// by whom - this is the safeguard while the description itself isn't locked.
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -147,6 +144,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
     if (!(await canAccessTask(req.user, task))) {
       return res.status(403).json({ error: 'Not permitted to edit this task' });
+    }
+
+    if (req.body.type !== undefined && !TASK_TYPES.includes(req.body.type)) {
+      return res.status(400).json({ error: 'Invalid task type' });
     }
 
     const changes = [];
@@ -177,9 +178,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/tasks/:id/status - status is employee-owned.
-// Managers (and super admin acting as manager-equivalent) get a 403 here by
-// design: status reflects the employee's own report of their work.
 router.patch('/:id/status', requireAuth, async (req, res) => {
   try {
     const { status } = req.body;

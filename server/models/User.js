@@ -16,22 +16,20 @@ const userSchema = new mongoose.Schema(
       enum: ['employee', 'manager', 'admin'],
       required: true,
     },
-    // Legacy flag from before 'admin' was its own role value. No longer
-    // read by any authorization logic (role === 'admin' is now the single
-    // source of truth) - kept only so old documents don't fail validation.
     isSuperAdmin: { type: Boolean, default: false },
-    // Only relevant for employees - who they report to
-    managerId: {
-      type: mongoose.Schema.Types.ObjectId,
+    // An employee can report to more than one manager at once, so this is
+    // an array rather than a single reference. Only meaningful for
+    // role: 'employee' - always empty for managers/admin.
+    managerIds: {
+      type: [mongoose.Schema.Types.ObjectId],
       ref: 'User',
-      default: null,
+      default: [],
     },
     mustChangePassword: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-// Never leak the password hash to API responses.
 userSchema.methods.toSafeObject = function () {
   return {
     id: this._id,
@@ -39,7 +37,7 @@ userSchema.methods.toSafeObject = function () {
     email: this.email,
     role: this.role,
     isSuperAdmin: this.isSuperAdmin,
-    managerId: this.managerId,
+    managerIds: this.managerIds,
     mustChangePassword: this.mustChangePassword,
     createdAt: this.createdAt,
   };

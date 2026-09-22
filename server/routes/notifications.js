@@ -11,13 +11,6 @@ function isAdmin(user) {
   return user.role === 'admin' || user.isSuperAdmin === true;
 }
 
-// There's no background job/cron running (the free hosting tier would sleep
-// through it anyway), so overdue notifications are generated lazily right
-// here: every time someone loads their notifications, we check their
-// relevant tasks for ones that are newly overdue and don't already have an
-// overdue notification recorded, and create one. This keeps things simple
-// with no extra infrastructure, at the cost of only surfacing an overdue
-// notice the next time the person actually opens the app.
 async function generateOverdueNotifications(user) {
   const now = new Date();
   let taskFilter = { dueDate: { $lt: now }, status: { $ne: 'done' } };
@@ -28,7 +21,7 @@ async function generateOverdueNotifications(user) {
   if (user.role === 'employee') {
     taskFilter.assignedTo = user._id;
   } else if (user.role === 'manager') {
-    const teamIds = (await User.find({ managerId: user._id }).select('_id')).map(
+    const teamIds = (await User.find({ managerIds: user._id }).select('_id')).map(
       (u) => u._id
     );
     taskFilter.assignedTo = { $in: teamIds };

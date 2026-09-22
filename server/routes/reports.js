@@ -53,7 +53,7 @@ router.get('/', requireAuth, async (req, res) => {
 
     const employees = isAdmin(req.user)
       ? await User.find({ role: 'employee' }).select('name email')
-      : await User.find({ managerId: req.user._id }).select('name email');
+      : await User.find({ managerIds: req.user._id }).select('name email');
 
     if (employees.length === 0) {
       return res.status(400).json({ error: 'No employees to report on' });
@@ -281,57 +281,128 @@ function sendPdfReport(res, employees, tasksByEmployee, periodLabel, filenameBas
   doc.end();
 }
 
+function argb(hex) {
+  return 'FF' + hex.replace('#', '').toUpperCase();
+}
+
+const XLCOLORS = {
+  ink: argb(COLORS.ink),
+  ledgerDark: argb(COLORS.ledgerDark),
+  ledger: argb(COLORS.ledger),
+  gold: argb(COLORS.gold),
+  stamp: argb(COLORS.stamp),
+  stampBg: argb(COLORS.stampBg),
+  inkSoft: argb(COLORS.inkSoft),
+  white: 'FFFFFFFF',
+};
+
+function addBrandedHeader(sheet, colCount, subtitle, periodLabel) {
+  const lastCol = String.fromCharCode(64 + colCount);
+
+  sheet.mergeCells(`A1:${lastCol}1`);
+  const titleCell = sheet.getCell('A1');
+  titleCell.value = 'Daybook — MAC International';
+  titleCell.font = { bold: true, size: 16, color: { argb: XLCOLORS.white } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XLCOLORS.ink } };
+  titleCell.alignment = { vertical: 'middle' };
+  sheet.getRow(1).height = 26;
+
+  sheet.mergeCells(`A2:${lastCol}2`);
+  const subtitleCell = sheet.getCell('A2');
+  subtitleCell.value = `${subtitle} — ${periodLabel} · Generated ${friendlyDate(new Date(), true)}`;
+  subtitleCell.font = { italic: true, size: 10, color: { argb: XLCOLORS.white } };
+  subtitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XLCOLORS.ink } };
+  sheet.getRow(2).height = 18;
+
+  sheet.addRow([]);
+}
+
+function styleHeaderRow(row) {
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: XLCOLORS.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XLCOLORS.ledgerDark } };
+  });
+}
+
 async function sendExcelReport(res, employees, tasksByEmployee, periodLabel, filenameBase) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Daybook';
 
   const summarySheet = workbook.addWorksheet('Summary');
   summarySheet.columns = [
-    { header: 'Employee', key: 'name', width: 24 },
-    { header: 'Email', key: 'email', width: 28 },
-    { header: 'Pending', key: 'pending', width: 10 },
-    { header: 'In Progress', key: 'in_progress', width: 12 },
-    { header: 'Done', key: 'done', width: 10 },
-    { header: 'Overdue', key: 'overdue', width: 10 },
+    { key: 'name', width: 24 },
+    { key: 'email', width: 28 },
+    { key: 'pending', width: 10 },
+    { key: 'in_progress', width: 12 },
+    { key: 'done', width: 10 },
+    { key: 'overdue', width: 10 },
   ];
-  summarySheet.getRow(1).font = { bold: true };
+  addBrandedHeader(summarySheet, 6, 'Team Summary', periodLabel);
+  styleHeaderRow(
+    summarySheet.addRow(['Employee', 'Email', 'Pending', 'In Progress', 'Done', 'Overdue'])
+  );
 
   employees.forEach((emp) => {
     const tasks = tasksByEmployee[String(emp._id)] || [];
-    summarySheet.addRow({
-      name: emp.name,
-      email: emp.email,
+    const counts = {
       pending: tasks.filter((t) => t.status === 'pending').length,
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       done: tasks.filter((t) => t.status === 'done').length,
       overdue: tasks.filter(isOverdue).length,
-    });
+    };
+    const row = summarySheet.addRow([
+      emp.name,
+      emp.email,
+      counts.pending,
+      counts.in_progress,
+      counts.done,
+      counts.overdue,
+    ]);
+    row.getCell(3).font = { color: { argb: XLCOLORS.inkSoft } };
+    row.getCell(4).font = { color: { argb: XLCOLORS.gold } };
+    row.getCell(5).font = { color: { argb: XLCOLORS.ledger } };
+    row.getCell(6).font = {
+      color: { argb: counts.overdue > 0 ? XLCOLORS.stamp : XLCOLORS.inkSoft },
+      bold: counts.overdue > 0,
+    };
   });
 
   const tasksSheet = workbook.addWorksheet('Tasks');
   tasksSheet.columns = [
-    { header: 'Employee', key: 'employee', width: 20 },
-    { header: 'Title', key: 'title', width: 30 },
-    { header: 'Type', key: 'type', width: 10 },
-    { header: 'Status', key: 'status', width: 14 },
-    { header: 'Due Date', key: 'dueDate', width: 14 },
-    { header: 'Overdue', key: 'overdue', width: 10 },
-    { header: 'Created', key: 'createdAt', width: 14 },
+    { key: 'employee', width: 20 },
+    { key: 'title', width: 26 },
+    { key: 'description', width: 42 },
+    { key: 'status', width: 14 },
+    { key: 'dueDate', width: 16 },
+    { key: 'overdue', width: 10 },
+    { key: 'createdAt', width: 16 },
   ];
-  tasksSheet.getRow(1).font = { bold: true };
+  addBrandedHeader(tasksSheet, 7, 'Task Detail', periodLabel);
+  styleHeaderRow(
+    tasksSheet.addRow(['Employee', 'Title', 'Description', 'Status', 'Due Date', 'Overdue', 'Created'])
+  );
 
   employees.forEach((emp) => {
     const tasks = tasksByEmployee[String(emp._id)] || [];
     tasks.forEach((t) => {
-      tasksSheet.addRow({
-        employee: emp.name,
-        title: t.title,
-        type: t.type,
-        status: t.status.replace('_', ' '),
-        dueDate: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : '',
-        overdue: isOverdue(t) ? 'Yes' : 'No',
-        createdAt: new Date(t.createdAt).toLocaleDateString(),
-      });
+      const overdue = isOverdue(t);
+      const row = tasksSheet.addRow([
+        emp.name,
+        t.title,
+        t.description || '—',
+        t.status.replace('_', ' '),
+        t.dueDate ? friendlyDate(t.dueDate) : '—',
+        overdue ? 'Yes' : 'No',
+        friendlyDate(t.createdAt),
+      ]);
+      row.alignment = { wrapText: true, vertical: 'top' };
+      if (overdue) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XLCOLORS.stampBg } };
+        });
+        row.getCell(5).font = { bold: true, color: { argb: XLCOLORS.stamp } };
+        row.getCell(6).font = { bold: true, color: { argb: XLCOLORS.stamp } };
+      }
     });
   });
 

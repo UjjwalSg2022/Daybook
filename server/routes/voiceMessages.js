@@ -13,6 +13,10 @@ function isAdmin(user) {
   return user.role === 'admin' || user.isSuperAdmin === true;
 }
 
+function managesEmployee(managerId, employee) {
+  return (employee.managerIds || []).some((id) => String(id) === String(managerId));
+}
+
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'voice-messages');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -63,7 +67,7 @@ router.post('/', requireAuth, upload.single('audio'), async (req, res) => {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: 'recipientId must be a valid employee' });
     }
-    if (!isAdmin(req.user) && String(employee.managerId) !== String(req.user._id)) {
+    if (!isAdmin(req.user) && !managesEmployee(req.user._id, employee)) {
       fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'You can only message your own team' });
     }

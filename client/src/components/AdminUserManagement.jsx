@@ -1,11 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 
+function ManagerCheckboxList({ managers, selectedIds, onChange }) {
+  function toggle(id) {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((x) => x !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  }
+
+  return (
+    <div className="border border-rule rounded-sm bg-white/60 divide-y divide-rule max-h-40 overflow-y-auto">
+      {managers.map((m) => (
+        <label
+          key={m._id}
+          className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-paper-dark transition-colors"
+        >
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(m._id)}
+            onChange={() => toggle(m._id)}
+            className="accent-ledger"
+          />
+          {m.name}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function CreateAccountModal({ managers, onClose, onCreated }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('employee');
-  const [managerId, setManagerId] = useState(managers[0]?._id || '');
+  const [managerIds, setManagerIds] = useState([]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +49,7 @@ function CreateAccountModal({ managers, onClose, onCreated }) {
         email,
         role,
         password,
-        managerId: role === 'employee' ? managerId : undefined,
+        managerIds: role === 'employee' ? managerIds : undefined,
       });
       onCreated();
     } catch (err) {
@@ -31,6 +60,7 @@ function CreateAccountModal({ managers, onClose, onCreated }) {
   }
 
   const needsManagerButNoneExist = role === 'employee' && managers.length === 0;
+  const needsAtLeastOne = role === 'employee' && managerIds.length === 0;
 
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center px-6 z-20">
@@ -83,25 +113,18 @@ function CreateAccountModal({ managers, onClose, onCreated }) {
         {role === 'employee' && (
           <div>
             <label className="block font-mono text-xs uppercase tracking-wide text-ink-soft mb-1.5">
-              Reports to
+              Reports to (select one or more)
             </label>
             {needsManagerButNoneExist ? (
               <p className="font-mono text-xs text-stamp bg-stamp/5 border border-stamp/30 rounded-sm px-3 py-2">
                 No managers exist yet. Create a manager account first.
               </p>
             ) : (
-              <select
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-                required
-                className="w-full border border-rule bg-white/60 rounded-sm px-3 py-2"
-              >
-                {managers.map((m) => (
-                  <option key={m._id} value={m._id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <ManagerCheckboxList
+                managers={managers}
+                selectedIds={managerIds}
+                onChange={setManagerIds}
+              />
             )}
           </div>
         )}
@@ -140,7 +163,7 @@ function CreateAccountModal({ managers, onClose, onCreated }) {
           </button>
           <button
             type="submit"
-            disabled={busy || needsManagerButNoneExist}
+            disabled={busy || needsManagerButNoneExist || needsAtLeastOne}
             className="flex-1 bg-ledger text-paper rounded-sm py-2 font-medium hover:bg-ledger-dark transition-colors disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create account'}
@@ -155,8 +178,8 @@ function EditAccountModal({ targetUser, managers, onClose, onSaved }) {
   const [name, setName] = useState(targetUser.name);
   const [email, setEmail] = useState(targetUser.email);
   const [role, setRole] = useState(targetUser.role);
-  const [managerId, setManagerId] = useState(
-    targetUser.managerId?._id || targetUser.managerId || managers[0]?._id || ''
+  const [managerIds, setManagerIds] = useState(
+    (targetUser.managerIds || []).map((m) => (typeof m === 'string' ? m : m._id))
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -170,7 +193,7 @@ function EditAccountModal({ targetUser, managers, onClose, onSaved }) {
         name,
         email,
         role,
-        managerId: role === 'employee' ? managerId : undefined,
+        managerIds: role === 'employee' ? managerIds : undefined,
       });
       onSaved();
     } catch (err) {
@@ -181,6 +204,7 @@ function EditAccountModal({ targetUser, managers, onClose, onSaved }) {
   }
 
   const needsManagerButNoneExist = role === 'employee' && managers.length === 0;
+  const needsAtLeastOne = role === 'employee' && managerIds.length === 0;
 
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center px-6 z-20">
@@ -238,25 +262,18 @@ function EditAccountModal({ targetUser, managers, onClose, onSaved }) {
         {role === 'employee' && (
           <div>
             <label className="block font-mono text-xs uppercase tracking-wide text-ink-soft mb-1.5">
-              Reports to
+              Reports to (select one or more)
             </label>
             {needsManagerButNoneExist ? (
               <p className="font-mono text-xs text-stamp bg-stamp/5 border border-stamp/30 rounded-sm px-3 py-2">
                 No managers exist yet. Create a manager account first.
               </p>
             ) : (
-              <select
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-                required
-                className="w-full border border-rule bg-white/60 rounded-sm px-3 py-2"
-              >
-                {managers.map((m) => (
-                  <option key={m._id} value={m._id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <ManagerCheckboxList
+                managers={managers}
+                selectedIds={managerIds}
+                onChange={setManagerIds}
+              />
             )}
           </div>
         )}
@@ -277,7 +294,7 @@ function EditAccountModal({ targetUser, managers, onClose, onSaved }) {
           </button>
           <button
             type="submit"
-            disabled={busy || needsManagerButNoneExist}
+            disabled={busy || needsManagerButNoneExist || needsAtLeastOne}
             className="flex-1 bg-ledger text-paper rounded-sm py-2 font-medium hover:bg-ledger-dark transition-colors disabled:opacity-50"
           >
             {busy ? 'Saving…' : 'Save changes'}
@@ -478,7 +495,8 @@ export default function AdminUserManagement() {
                 </div>
                 <div className="font-mono text-[11px] text-ink-soft truncate">
                   {u.email}
-                  {u.managerId && ` · reports to ${u.managerId.name}`}
+                  {u.managerIds && u.managerIds.length > 0 &&
+                    ` · reports to ${u.managerIds.map((m) => m.name).join(', ')}`}
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -494,14 +512,12 @@ export default function AdminUserManagement() {
                 >
                   Reset password
                 </button>
-
-                 <button
+                <button
                   onClick={() => setDeleteTarget(u)}
                   className="font-mono text-[11px] uppercase tracking-wide border border-rule text-stamp/80 rounded-sm px-3 py-1.5 hover:border-stamp hover:bg-stamp/10 transition-colors"
                 >
                   Delete
                 </button>
-
               </div>
             </li>
           ))}
@@ -532,14 +548,6 @@ export default function AdminUserManagement() {
       )}
 
       {resetTarget && (
-        <ResetPasswordModal
-          targetUser={resetTarget}
-          onClose={() => setResetTarget(null)}
-          onReset={() => setResetTarget(null)}
-        />
-      )}
-
-            {resetTarget && (
         <ResetPasswordModal
           targetUser={resetTarget}
           onClose={() => setResetTarget(null)}

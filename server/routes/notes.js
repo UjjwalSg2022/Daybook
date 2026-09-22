@@ -12,6 +12,10 @@ function isAdmin(user) {
   return user.role === 'admin' || user.isSuperAdmin === true;
 }
 
+function managesEmployee(managerId, employee) {
+  return (employee.managerIds || []).some((id) => String(id) === String(managerId));
+}
+
 router.post('/', requireAuth, async (req, res) => {
   try {
     if (!isAdmin(req.user) && req.user.role !== 'employee') {
@@ -96,7 +100,7 @@ router.get('/', requireAuth, async (req, res) => {
       }
       const employee = await User.findById(req.query.employeeId);
       if (!employee) return res.status(404).json({ error: 'Employee not found' });
-      if (!isAdmin(req.user) && String(employee.managerId) !== String(req.user._id)) {
+      if (!isAdmin(req.user) && !managesEmployee(req.user._id, employee)) {
         return res.status(403).json({ error: 'Not your team member' });
       }
       authorId = employee._id;
