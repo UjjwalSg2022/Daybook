@@ -482,9 +482,9 @@ export default function AdminUserManagement() {
       ) : (
         <ul className="space-y-2">
           {users.map((u) => (
-            <li
+              <li
               key={u._id}
-              className="flex items-center justify-between gap-3 border border-rule rounded-sm px-3 py-2.5 bg-white/40"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-rule rounded-sm px-3 py-2.5 bg-white/40"
             >
               <div className="min-w-0">
                 <div className="text-sm text-ink font-medium">
@@ -499,7 +499,7 @@ export default function AdminUserManagement() {
                     ` · reports to ${u.managerIds.map((m) => m.name).join(', ')}`}
                 </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+                <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
                 <button
                   onClick={() => setEditTarget(u)}
                   className="font-mono text-[11px] uppercase tracking-wide border border-rule rounded-sm px-3 py-1.5 hover:border-ledger hover:text-ledger transition-colors"
